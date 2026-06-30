@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo, useRef, useLayoutEffect } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { useAuth } from '../../context/AuthContext';
 import api from '../../utils/api';
@@ -25,6 +25,8 @@ export default function Sidebar() {
   const navigate = useNavigate();
   const location = useLocation();
   const [unreadCount, setUnreadCount] = useState(0);
+  const navRef = useRef(null);
+  const storageKey = `sidebar.nav.${user?.role || 'guest'}`;
 
   useEffect(() => {
     const fetchNotifs = async () => {
@@ -39,6 +41,29 @@ export default function Sidebar() {
   }, []);
 
   const navItems = ROLE_NAV_ITEMS[user?.role] || [];
+
+  const navGroups = useMemo(() => {
+    const groups = [];
+    let current = null;
+    navItems.forEach((item, index) => {
+      if (item.type === 'section') {
+        current = { key: item.label, label: item.label, index, items: [] };
+        groups.push(current);
+        return;
+      }
+      if (!current) {
+        current = { key: '__root__', label: null, index: -1, items: [] };
+        groups.push(current);
+      }
+      current.items.push(item);
+    });
+    return groups;
+  }, [navItems]);
+
+  const sectionKeys = useMemo(
+    () => navGroups.filter(group => group.label).map(group => group.key),
+    [navGroups]
+  );
 
   const splitPath = (path) => {
     const [pathname, search = ''] = path.split('?');
@@ -58,25 +83,113 @@ export default function Sidebar() {
     return location.pathname === target.pathname || (target.pathname !== '/' && location.pathname.startsWith(target.pathname));
   };
 
-  const NavBtn = ({ item }) => {
-    if (item.type === 'section') {
-      return (
-        <div style={{
+  const activeSectionKey = useMemo(() => {
+    const activeGroup = navGroups.find(group => group.items.some(item => isActive(item.path)));
+    return activeGroup?.label ? activeGroup.key : null;
+  }, [navGroups, location.pathname, location.search]);
+
+  const [expandedSections, setExpandedSections] = useState(() => {
+    try {
+      const saved = JSON.parse(window.localStorage.getItem(storageKey) || '{}');
+      return saved.expandedSections || {};
+    } catch (_) {
+      return {};
+    }
+  });
+
+  useEffect(() => {
+    setExpandedSections(prev => {
+      const next = { ...prev };
+      sectionKeys.forEach(key => {
+        if (next[key] === undefined) next[key] = true;
+      });
+      if (activeSectionKey) next[activeSectionKey] = true;
+      return next;
+    });
+  }, [activeSectionKey, sectionKeys]);
+
+  useEffect(() => {
+    try {
+      const saved = JSON.parse(window.localStorage.getItem(storageKey) || '{}');
+      window.localStorage.setItem(storageKey, JSON.stringify({
+        ...saved,
+        expandedSections,
+      }));
+    } catch (_) {}
+  }, [expandedSections, storageKey]);
+
+  useLayoutEffect(() => {
+    const nav = navRef.current;
+    if (!nav) return;
+    let scrollTop = 0;
+    try {
+      const saved = JSON.parse(window.localStorage.getItem(storageKey) || '{}');
+      scrollTop = Number(saved.scrollTop || 0);
+    } catch (_) {}
+    const frame = window.requestAnimationFrame(() => {
+      nav.scrollTop = scrollTop;
+      const activeItem = nav.querySelector('[data-sidebar-active="true"]');
+      if (activeItem) {
+        const navRect = nav.getBoundingClientRect();
+        const itemRect = activeItem.getBoundingClientRect();
+        const isVisible = itemRect.top >= navRect.top && itemRect.bottom <= navRect.bottom;
+        if (!isVisible) activeItem.scrollIntoView({ block: 'nearest' });
+      }
+    });
+    return () => window.cancelAnimationFrame(frame);
+  }, [location.pathname, location.search, storageKey, expandedSections]);
+
+  const saveScrollPosition = () => {
+    const nav = navRef.current;
+    if (!nav) return;
+    try {
+      const saved = JSON.parse(window.localStorage.getItem(storageKey) || '{}');
+      window.localStorage.setItem(storageKey, JSON.stringify({
+        ...saved,
+        scrollTop: nav.scrollTop,
+      }));
+    } catch (_) {}
+  };
+
+  const toggleSection = (key) => {
+    setExpandedSections(prev => ({ ...prev, [key]: !prev[key] }));
+  };
+
+  const SectionHeader = ({ group }) => {
+    const expanded = expandedSections[group.key] !== false;
+    const active = activeSectionKey === group.key;
+    return (
+      <button
+        onClick={() => toggleSection(group.key)}
+        aria-expanded={expanded}
+        style={{
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'space-between',
+          width: '100%',
           padding: '0.9rem 0.85rem 0.35rem',
-          color: 'var(--text-muted)',
+          border: 'none',
+          background: 'transparent',
+          color: active ? 'var(--accent)' : 'var(--text-muted)',
           fontSize: '0.64rem',
           fontFamily: 'var(--font-mono)',
           fontWeight: 700,
           letterSpacing: '0.08em',
           textTransform: 'uppercase',
-        }}>
-          {item.label}
-        </div>
-      );
-    }
+          cursor: 'pointer',
+          textAlign: 'left',
+        }}
+      >
+        <span>{group.label}</span>
+        <span style={{ fontSize: '0.7rem', lineHeight: 1 }}>{expanded ? 'v' : '>'}</span>
+      </button>
+    );
+  };
 
+  const NavBtn = ({ item }) => {
     const active = isActive(item.path);
     const handleNavigate = () => {
+      saveScrollPosition();
       console.log('[Navigation] sidebar click', {
         role: user?.role,
         label: item.label,
@@ -90,6 +203,7 @@ export default function Sidebar() {
     return (
       <button
         onClick={handleNavigate}
+        data-sidebar-active={active ? 'true' : undefined}
         style={{
           display: 'flex', alignItems: 'center', gap: '0.6rem',
           width: '100%', padding: '0.65rem 0.85rem',
@@ -125,14 +239,25 @@ export default function Sidebar() {
       </div>
 
       {/* Nav */}
-      <nav style={{ flex: 1, padding: '0.75rem', overflowY: 'auto' }}>
-        {navItems.map((item, i) => <NavBtn key={item.path || `${item.type}-${item.label}-${i}`} item={item}/>)}
+      <nav
+        ref={navRef}
+        onScroll={saveScrollPosition}
+        style={{ flex: 1, padding: '0.75rem', overflowY: 'auto' }}
+      >
+        {navGroups.map(group => (
+          <div key={group.key}>
+            {group.label && <SectionHeader group={group} />}
+            {(group.label ? expandedSections[group.key] !== false : true) && group.items.map(item => (
+              <NavBtn key={item.path || item.label} item={item}/>
+            ))}
+          </div>
+        ))}
       </nav>
 
       {/* Bottom */}
       <div style={{ padding: '0.75rem', borderTop: '1px solid var(--border)' }}>
         <button
-          onClick={() => navigate('/onboarding')}
+          onClick={() => { saveScrollPosition(); navigate('/onboarding'); }}
           style={{
             display: 'flex', alignItems: 'center', gap: '0.6rem',
             width: '100%', padding: '0.6rem 0.85rem', borderRadius: 'var(--radius)',
@@ -147,7 +272,7 @@ export default function Sidebar() {
         </button>
 
         <button
-          onClick={() => navigate('/notifications')}
+          onClick={() => { saveScrollPosition(); navigate('/notifications'); }}
           style={{
             display: 'flex', alignItems: 'center', justifyContent: 'space-between',
             width: '100%', padding: '0.6rem 0.85rem', borderRadius: 'var(--radius)',
