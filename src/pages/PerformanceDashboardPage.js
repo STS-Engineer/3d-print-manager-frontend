@@ -420,9 +420,9 @@ export default function PerformanceDashboardPage() {
                   filename="technician-performance.csv"
                   columns={[
                     { label: 'Technician', key: 'technician' },
-                    { label: 'Actual Print Hours', key: 'actual_print_hours', render: row => hours(row.actual_print_hours) },
+                    { label: 'Requests Managed', key: 'requests_managed', render: row => parseInt(row.requests_managed || 0, 10) },
                     { label: 'Material Consumed', key: 'material_consumed', render: row => grams(row.material_consumed) },
-                    { label: 'Actual Cost Managed', key: 'actual_cost_managed', render: row => money(row.actual_cost_managed) },
+                    { label: 'Production Cost Managed', key: 'actual_cost_managed', render: row => money(row.actual_cost_managed) },
                   ]}
                 />
               </div>
