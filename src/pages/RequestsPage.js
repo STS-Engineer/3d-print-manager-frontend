@@ -2,7 +2,7 @@ import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import api from '../utils/api';
 import { useAuth } from '../context/AuthContext';
-import { StatusBadge, PriorityBadge, formatDate, formatDateTime, isOverdue } from '../utils/statusHelpers';
+import { StatusBadge, PriorityBadge, formatDateTime, isOverdue } from '../utils/statusHelpers';
 import Sidebar from '../components/common/Sidebar';
 import { isProductionTechnician } from '../utils/roles';
 
@@ -391,9 +391,9 @@ export default function RequestsPage() {
                           </td>
                         )}
                         <td style={{ fontSize: '0.8rem', color: isOverdue(r) ? 'var(--red)' : 'var(--text-secondary)' }}>
-                          {(r.approved_due_date || r.requested_due_date) ? (
+                          {(r.requested_due_date || r.approved_due_date) ? (
                             <>
-                              {formatDateTime(r.approved_due_date || r.requested_due_date)}
+                              {formatDateTime(r.requested_due_date || r.approved_due_date)}
                               {isOverdue(r) && (
                                 <span style={{ marginLeft: '0.3rem', fontSize: '0.65rem', color: 'var(--red)', fontWeight: 700 }}>
                                   OVERDUE
@@ -408,7 +408,7 @@ export default function RequestsPage() {
                           </td>
                         )}
                         <td style={{ fontSize: '0.8rem', color: 'var(--text-muted)' }}>
-                          {formatDate(r.created_at)}
+                          {formatDateTime(r.created_at)}
                         </td>
                       </tr>
                     ))}

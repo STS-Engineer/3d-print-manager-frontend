@@ -196,7 +196,7 @@ export default function AdminPage() {
                         <td style={{ fontSize: '0.8rem', color: 'var(--text-secondary)' }}>{p.location || '-'}</td>
                         <td
                           style={{ fontSize: '0.8rem', color: 'var(--text-secondary)' }}
-                          title={`Runtime Source: Production History (${p.cycle_history_jobs || 0} cycles / ${p.actual_start_end_jobs || 0} actual / ${p.actual_duration_jobs || 0} duration)`}
+                          title={`Runtime Source: Dashboard print-hours metric (${p.cycle_history_jobs || 0} production cycle(s))`}
                         >
                           {Number(p.total_runtime_hours ?? p.print_hours ?? 0).toFixed(1)} h
                         </td>

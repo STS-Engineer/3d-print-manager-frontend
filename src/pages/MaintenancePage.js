@@ -194,15 +194,14 @@ export default function MaintenancePage({ view = 'printers' }) {
                       <span>Total Runtime: <strong style={{ color: 'var(--text-primary)' }}>{hours(printer.total_runtime_hours)}</strong></span>
                       <span>Print Hours: <strong style={{ color: 'var(--text-primary)' }}>{hours(printer.print_hours)}</strong></span>
                       <span>Completed Jobs: <strong style={{ color: 'var(--text-primary)' }}>{printer.completed_job_count || 0}</strong></span>
-                      <span>Runtime Source: <strong style={{ color: 'var(--text-primary)' }}>{printer.cycle_history_jobs || 0} cycles / {printer.actual_start_end_jobs || 0} actual / {printer.actual_duration_jobs || 0} duration</strong></span>
+                      <span>Runtime Source: <strong style={{ color: 'var(--text-primary)' }}>{printer.cycle_history_jobs || 0} production cycle(s)</strong></span>
                       <span>Last Maintenance: <strong style={{ color: 'var(--text-primary)' }}>{fmtDate(printer.effective_last_maintenance_date)}</strong></span>
                       <span>Next Maintenance: <strong style={{ color: 'var(--text-primary)' }}>{fmtDate(printer.next_maintenance_date)}</strong></span>
                       <span>Interval Hours: <strong style={{ color: 'var(--text-primary)' }}>{hours(printer.maintenance_interval_hours || 0)}</strong></span>
                       <span>Interval Days: <strong style={{ color: 'var(--text-primary)' }}>{printer.maintenance_interval_days || '-'} days</strong></span>
                     </div>
                     <div style={{ marginTop: '0.75rem', color: 'var(--text-muted)', fontSize: '0.74rem', lineHeight: 1.4 }}>
-                      Runtime = completed/archived job time from production cycles, then actual start/end, then actual duration.
-                      {(printer.missing_runtime_jobs || 0) > 0 && ` ${printer.missing_runtime_jobs} completed job(s) have no runtime timestamps.`}
+                      Runtime uses the same completed production-cycle print-hours metric as the Performance Dashboard.
                     </div>
                     {canEdit && <button className="btn btn-secondary btn-sm" style={{ marginTop: '1rem' }} onClick={() => openCreate(printer)}>Log Maintenance</button>}
                   </div>

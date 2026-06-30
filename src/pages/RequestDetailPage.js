@@ -1142,9 +1142,12 @@ export default function RequestDetailPage() {
   );
 
   const rawAvailableTransitions = getAvailableTransitions(request.status, user?.role);
-  const availableTransitions = request.status === 'quality_check' && request.quality_result === 'fail'
-    ? rawAvailableTransitions.filter(status => status === 'rework_required')
-    : rawAvailableTransitions;
+  const latestQualityResult = request.latestQualityCheck?.result;
+  const availableTransitions = rawAvailableTransitions.filter(status => {
+    if (status === request.status) return false;
+    if (latestQualityResult === 'pass' && status === 'rework_required') return false;
+    return true;
+  });
   const needsReason = ['rejected','more_info_required','blocked','on_hold','cancelled','rework_required'];
   const plannedDurationPreview = calculatePlannedDurationHours(statusPlannedStart, statusPlannedEnd);
   const plannedDurationInvalid = statusPlannedEnd
