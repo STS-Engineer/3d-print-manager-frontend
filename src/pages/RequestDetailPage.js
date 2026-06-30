@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import api from '../utils/api';
 import { useAuth } from '../context/AuthContext';
@@ -240,8 +240,8 @@ const auditFieldLabels = {
   approved_at: 'Approval Date',
   planned_start_date: 'Planned Start',
   planned_end_date: 'Planned End',
-  production_material_usage_per_part: 'Material Usage Per Part',
-  production_print_time_per_part_minutes: 'Print Time Per Part',
+  production_material_usage_per_part: 'Total Material Usage',
+  production_print_time_per_part_minutes: 'Total Print Time',
   production_total_material_usage: 'Total Material Usage',
   production_total_print_time_minutes: 'Total Print Time',
   submitted_at: 'Submission Date',
@@ -830,6 +830,8 @@ export default function RequestDetailPage() {
   const [request, setRequest] = useState(null);
   const [loading, setLoading] = useState(true);
   const [activeTab, setActiveTab] = useState('details');
+  const qualitySectionRef = useRef(null);
+  const pendingQualityFocusRef = useRef(false);
   const [showStatusModal, setShowStatusModal] = useState(false);
   const [selectedStatus, setSelectedStatus] = useState('');
   const [statusComment, setStatusComment] = useState('');
@@ -886,6 +888,23 @@ export default function RequestDetailPage() {
     setLoading(false);
   }, [id]);
 
+  const focusQualitySection = useCallback(() => {
+    const section = qualitySectionRef.current;
+    if (!section) return;
+
+    section.scrollIntoView({ behavior: 'smooth', block: 'start' });
+
+    const addQualityButton = Array.from(section.querySelectorAll('button'))
+      .find(button => button.textContent?.toLowerCase().includes('add quality check'));
+    const focusTarget = addQualityButton
+      || section.querySelector('button, [href], input, select, textarea, [tabindex]:not([tabindex="-1"])')
+      || section;
+
+    if (typeof focusTarget.focus === 'function') {
+      focusTarget.focus({ preventScroll: true });
+    }
+  }, []);
+
   useEffect(() => {
     fetchRequest();
     if (isProductionTechnician(user?.role) || ['administrator','manager'].includes(user?.role)) {
@@ -896,6 +915,19 @@ export default function RequestDetailPage() {
       api.get('/materials/stock-overview').then(r => setStockOverview(r.data)).catch(() => {});
     }
   }, [fetchRequest, user]);
+
+  useEffect(() => {
+    if (!pendingQualityFocusRef.current || activeTab !== 'quality' || request?.status !== 'quality_check') {
+      return undefined;
+    }
+
+    const timer = window.setTimeout(() => {
+      pendingQualityFocusRef.current = false;
+      focusQualitySection();
+    }, 100);
+
+    return () => window.clearTimeout(timer);
+  }, [activeTab, request?.status, focusQualitySection]);
 
   useEffect(() => {
     if (selectedStatus !== 'printed') return undefined;
@@ -909,19 +941,17 @@ export default function RequestDetailPage() {
     if (!statusQuantity && request.quantity) setStatusQuantity(String(request.quantity));
     if (!statusPrinterId && request.printer_id) setStatusPrinterId(request.printer_id);
     if (!statusMaterialId && request.material_id) setStatusMaterialId(request.material_id);
-    if (!statusMaterialUsagePerPart && request.production_material_usage_per_part) {
-      setStatusMaterialUsagePerPart(String(request.production_material_usage_per_part));
+    if (!statusMaterialUsagePerPart && (request.production_total_material_usage || request.production_material_usage_per_part)) {
+      setStatusMaterialUsagePerPart(String(request.production_total_material_usage || request.production_material_usage_per_part));
     }
-    if (!statusPrintTimePerPart && request.production_print_time_per_part_minutes) {
-      setStatusPrintTimePerPart(String(request.production_print_time_per_part_minutes));
+    if (!statusPrintTimePerPart && (request.production_total_print_time_minutes || request.production_print_time_per_part_minutes)) {
+      setStatusPrintTimePerPart(String(request.production_total_print_time_minutes || request.production_print_time_per_part_minutes));
     }
   }, [selectedStatus, request, statusQuantity, statusPrinterId, statusMaterialId, statusMaterialUsagePerPart, statusPrintTimePerPart]);
 
   useEffect(() => {
     if (selectedStatus !== 'planned' || statusPlannedEndManual) return;
-    const quantity = parseFloat(statusQuantity || request?.quantity || 0);
-    const printTimePerPart = parseFloat(statusPrintTimePerPart);
-    const totalMinutes = quantity * printTimePerPart;
+    const totalMinutes = parseFloat(statusPrintTimePerPart);
     const nextEnd = calculatePlannedEndDateTime(statusPlannedStart, totalMinutes);
     if (nextEnd && nextEnd !== statusPlannedEnd) {
       setStatusPlannedEnd(nextEnd);
@@ -930,8 +960,7 @@ export default function RequestDetailPage() {
     selectedStatus,
     statusPlannedStart,
     statusPrintTimePerPart,
-    statusQuantity,
-    statusPlannedEnd,
+      statusPlannedEnd,
     statusPlannedEndManual,
     request,
   ]);
@@ -942,6 +971,7 @@ export default function RequestDetailPage() {
 
   const handleStatusUpdate = async () => {
     if (!selectedStatus) return;
+    const shouldOpenQualitySection = selectedStatus === 'quality_check';
     setUpdating(true); setError('');
     try {
       // Block printed if material used > reserved * 1.1
@@ -964,12 +994,12 @@ export default function RequestDetailPage() {
         return;
       }
       if (selectedStatus === 'planned' && (!statusMaterialUsagePerPart || parseFloat(statusMaterialUsagePerPart) <= 0)) {
-        setError('Please enter Material Usage Per Part from the slicing software.');
+        setError('Please enter Total Material Usage from the slicing software.');
         setUpdating(false);
         return;
       }
       if (selectedStatus === 'planned' && (!statusPrintTimePerPart || parseFloat(statusPrintTimePerPart) <= 0)) {
-        setError('Please enter Print Time Per Part from the slicing software.');
+        setError('Please enter Total Print Time from the slicing software.');
         setUpdating(false);
         return;
       }
@@ -1017,8 +1047,14 @@ export default function RequestDetailPage() {
         if (statusPlannedEnd)    payload.planned_end_date       = statusPlannedEnd;
         if (selectedStatus === 'planned') payload.planned_end_manually_adjusted = statusPlannedEndManual;
         if (statusMaterialSpool) payload.material_reserved_spool = statusMaterialSpool;
-        if (statusMaterialUsagePerPart) payload.production_material_usage_per_part = parseFloat(statusMaterialUsagePerPart);
-        if (statusPrintTimePerPart) payload.production_print_time_per_part_minutes = parseFloat(statusPrintTimePerPart);
+        if (statusMaterialUsagePerPart) {
+          payload.production_material_usage_per_part = parseFloat(statusMaterialUsagePerPart);
+          payload.production_total_material_usage = parseFloat(statusMaterialUsagePerPart);
+        }
+        if (statusPrintTimePerPart) {
+          payload.production_print_time_per_part_minutes = parseFloat(statusPrintTimePerPart);
+          payload.production_total_print_time_minutes = parseFloat(statusPrintTimePerPart);
+        }
         if (statusPrintedQty)    payload.printed_quantity        = parseInt(statusPrintedQty);
         if (statusRejectedQty)   payload.rejected_quantity       = parseInt(statusRejectedQty);
         if (statusMaterialUsed)  payload.material_used_grams     = parseFloat(statusMaterialUsed);
@@ -1044,6 +1080,10 @@ export default function RequestDetailPage() {
       setStatusBusinessImpact(''); setStatusProductionStop(false);
       setBlockingReasonCode(''); setStatusMaterialUsed('');
       await fetchRequest();
+      if (shouldOpenQualitySection) {
+        pendingQualityFocusRef.current = true;
+        setActiveTab('quality');
+      }
     } catch (err) {
       setError(err.response?.data?.error || 'Update failed');
     } finally {
@@ -1114,18 +1154,15 @@ export default function RequestDetailPage() {
   const planningMaterial = materials.find(m => m.id === statusMaterialId);
   const planningPrinter = printers.find(p => p.id === statusPrinterId);
   const planningStock = stockOverview.find(x => x.id === statusMaterialId);
-  const planningQuantity = parseFloat(statusQuantity || request.quantity || 1);
-  const requestQuantity = parseFloat(request.quantity || 1) || 1;
-  const planningQuantityFactor = Number.isFinite(planningQuantity) && planningQuantity > 0 ? planningQuantity / requestQuantity : 1;
-  const planningMaterialUsagePerPart = parseFloat(statusMaterialUsagePerPart);
-  const planningPrintTimePerPart = parseFloat(statusPrintTimePerPart);
-  const planningTotalMaterialUsage = Number.isFinite(planningMaterialUsagePerPart) && Number.isFinite(planningQuantity)
-    ? planningMaterialUsagePerPart * planningQuantity
+  const planningTotalMaterialInput = parseFloat(statusMaterialUsagePerPart);
+  const planningTotalPrintTimeInput = parseFloat(statusPrintTimePerPart);
+  const planningTotalMaterialUsage = Number.isFinite(planningTotalMaterialInput)
+    ? planningTotalMaterialInput
     : null;
-  const planningTotalPrintTimeMinutes = Number.isFinite(planningPrintTimePerPart) && Number.isFinite(planningQuantity)
-    ? planningPrintTimePerPart * planningQuantity
+  const planningTotalPrintTimeMinutes = Number.isFinite(planningTotalPrintTimeInput)
+    ? planningTotalPrintTimeInput
     : null;
-  const planningRequiredMaterial = planningTotalMaterialUsage ?? (parseFloat(request.material_reserved_qty || 0) * planningQuantityFactor);
+  const planningRequiredMaterial = planningTotalMaterialUsage ?? parseFloat(request.material_reserved_qty || 0);
   const planningAvailable = parseFloat(planningStock?.available_quantity ?? planningMaterial?.available_quantity ?? planningMaterial?.stock_quantity ?? 0);
   const planningReservedElsewhere = parseFloat(planningStock?.reserved_quantity ?? planningMaterial?.reserved_quantity ?? 0);
   const planningRemaining = Number.isFinite(planningAvailable) && Number.isFinite(planningRequiredMaterial)
@@ -1145,9 +1182,9 @@ export default function RequestDetailPage() {
     : null;
   const actualPrintTimePreview = calculateActualPrintTimeMinutes(request.actual_start_time, now);
   const cycleProductionCost = calculateConfiguredCost(
-    parseFloat(request.production_material_usage_per_part) * requestedQtyForPrint,
+    parseFloat(request.production_total_material_usage || request.production_material_usage_per_part),
     request.material_cost_per_unit,
-    parseFloat(request.production_print_time_per_part_minutes) * requestedQtyForPrint,
+    parseFloat(request.production_total_print_time_minutes || request.production_print_time_per_part_minutes),
     request.printer_cost_per_minute
   );
   const plannedPrintTimeDisplay = formatMinutesAsDuration(request.production_total_print_time_minutes);
@@ -1431,8 +1468,6 @@ export default function RequestDetailPage() {
                   <DetailRow label="Planned Start" value={orStar(formatDateTime(request.planned_start_date))}/>
                   <DetailRow label="Planned End" value={orStar(formatDateTime(request.planned_end_date))}/>
                   <DetailRow label="Planned Duration" value={orStar(plannedDurationDisplay)}/>
-                  <DetailRow label="Material Usage Per Part" value={request.production_material_usage_per_part ? `${parseFloat(request.production_material_usage_per_part).toFixed(2)} ${request.material_unit || 'g'}` : null}/>
-                  <DetailRow label="Print Time Per Part" value={request.production_print_time_per_part_minutes ? `${parseFloat(request.production_print_time_per_part_minutes).toFixed(2)} min` : null}/>
                   <DetailRow label="Total Material Usage" value={request.production_total_material_usage ? `${parseFloat(request.production_total_material_usage).toFixed(1)} ${request.material_unit || 'g'}` : null}/>
                   <DetailRow label="Total Print Time" value={request.production_total_print_time_minutes ? `${(parseFloat(request.production_total_print_time_minutes) / 60).toFixed(2)} h` : null}/>
                   <DetailRow label="Material Rate" value={request.material_cost_per_unit ? `${parseFloat(request.material_cost_per_unit).toFixed(4)} EUR/${request.material_unit || 'g'}` : null}/>
@@ -1604,7 +1639,7 @@ export default function RequestDetailPage() {
 
           {/* Quality Check tab */}
           {activeTab === 'quality' && (
-            <div className="card">
+            <div className="card" ref={qualitySectionRef} tabIndex="-1" aria-label="Quality section">
               <QualityCheckPanel requestId={id} requestStatus={request.status} request={request}/>
             </div>
           )}
@@ -1618,8 +1653,6 @@ export default function RequestDetailPage() {
                 <DetailRow label="Printer Cost Rate" value={request.printer_cost_per_minute ? `${parseFloat(request.printer_cost_per_minute).toFixed(4)} ${request.material_currency || 'EUR'}/min` : null}/>
                 <DetailRow label="Material Cost" value={money(requestMaterialCost)}/>
                 <DetailRow label="Fixed Cost" value={money(FIXED_COST)}/>
-                <DetailRow label="Material Usage Per Part" value={request.production_material_usage_per_part ? `${parseFloat(request.production_material_usage_per_part).toFixed(2)} ${request.material_unit || 'g'}` : null}/>
-                <DetailRow label="Print Time Per Part" value={request.production_print_time_per_part_minutes ? `${parseFloat(request.production_print_time_per_part_minutes).toFixed(2)} min` : null}/>
                 <DetailRow label="Total Material Usage" value={request.production_total_material_usage ? `${parseFloat(request.production_total_material_usage).toFixed(1)} ${request.material_unit || 'g'}` : null}/>
                 <DetailRow label="Total Print Time" value={request.production_total_print_time_minutes ? `${(parseFloat(request.production_total_print_time_minutes) / 60).toFixed(2)} h` : null}/>
                 <DetailRow label="Material" value={request.material_name}/>
@@ -1902,7 +1935,7 @@ export default function RequestDetailPage() {
                   {statusMaterialId && (
                     <div className="grid-2">
                       <div className="form-group">
-                        <label className="form-label">Material Usage Per Part ({
+                        <label className="form-label">Total Material Usage ({
                           materials.find(m => m.id === statusMaterialId)?.unit || 'g'
                         }) *</label>
                         <input
@@ -1910,7 +1943,7 @@ export default function RequestDetailPage() {
                           className="form-input"
                           value={statusMaterialUsagePerPart}
                           onChange={e => setStatusMaterialUsagePerPart(e.target.value)}
-                          placeholder="From slicer, e.g. 20.5"
+                          placeholder="Total from slicer, e.g. 200"
                         />
                         {/* Warn if qty > available */}
                         {planningTotalMaterialUsage !== null && statusMaterialId && (() => {
@@ -1930,13 +1963,13 @@ export default function RequestDetailPage() {
                         })()}
                       </div>
                       <div className="form-group">
-                        <label className="form-label">Print Time Per Part (minutes) *</label>
+                        <label className="form-label">Total Print Time (minutes) *</label>
                         <input
                           type="number" min="0.01" step="0.01"
                           className="form-input"
                           value={statusPrintTimePerPart}
                           onChange={e => setStatusPrintTimePerPart(e.target.value)}
-                          placeholder="From slicer, e.g. 85"
+                          placeholder="Total from slicer, e.g. 850"
                         />
                       </div>
                       <div className="form-group">
@@ -1955,8 +1988,6 @@ export default function RequestDetailPage() {
                       <DetailRow label="Quantity" value={request.quantity}/>
                       <DetailRow label="Material" value={planningMaterial?.name || request.material_name}/>
                       <DetailRow label="Printer" value={planningPrinter?.name || request.printer_name}/>
-                      <DetailRow label="Material Usage Per Part" value={Number.isFinite(planningMaterialUsagePerPart) ? `${planningMaterialUsagePerPart.toFixed(2)} ${planningMaterial?.unit || 'g'}` : null}/>
-                      <DetailRow label="Print Time Per Part" value={Number.isFinite(planningPrintTimePerPart) ? `${planningPrintTimePerPart.toFixed(2)} min` : null}/>
                       <DetailRow label="Total Material Usage" value={planningTotalMaterialUsage !== null ? `${planningTotalMaterialUsage.toFixed(1)} ${planningMaterial?.unit || 'g'}` : null}/>
                       <DetailRow label="Total Print Time" value={planningTotalPrintTimeMinutes !== null ? `${(planningTotalPrintTimeMinutes / 60).toFixed(2)} h` : null}/>
                       <DetailRow label="Inventory Risk Status" value={planningInventoryRisk ? 'High - Insufficient Stock' : 'OK'}/>
