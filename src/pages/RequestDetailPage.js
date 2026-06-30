@@ -1309,7 +1309,7 @@ export default function RequestDetailPage() {
                   <div style={{ fontSize: '1.4rem', fontFamily: 'var(--font-heading)', fontWeight: 800 }}>{request.quantity}</div>
                   <div style={{ fontSize: '0.72rem', color: 'var(--text-muted)' }}>piece{request.quantity !== 1 ? 's' : ''}</div>
                 </div>
-                <div style={{ fontSize: '1.5rem', color: 'var(--text-muted)' }}>?</div>
+                <div style={{ fontSize: '1.5rem', color: 'var(--text-muted)' }}>→</div>
                 <div>
                   <div style={{ fontSize: '0.72rem', color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: '0.2rem' }}>Printed</div>
                   <div style={{ fontSize: '1.4rem', fontFamily: 'var(--font-heading)', fontWeight: 800,
@@ -1329,7 +1329,7 @@ export default function RequestDetailPage() {
                 )}
                 <div style={{ marginLeft: 'auto' }}>
                   {request.printed_quantity >= request.quantity ? (
-                    <span style={{ fontSize: '0.9rem', fontWeight: 700, color: 'var(--green)' }}>? Quantity fulfilled</span>
+                    <span style={{ fontSize: '0.9rem', fontWeight: 700, color: 'var(--green)' }}>✓ Quantity fulfilled</span>
                   ) : (
                     <span style={{ fontSize: '0.9rem', fontWeight: 700, color: 'var(--yellow)' }}>
                       ⚠ {request.quantity - request.printed_quantity} piece(s) short
@@ -1547,57 +1547,59 @@ export default function RequestDetailPage() {
               <div className="card">
                 <h3 style={{ fontSize: '0.8rem', color: 'var(--accent)', textTransform: 'uppercase', letterSpacing: '0.08em', marginBottom: '1rem' }}>Production Cycle History</h3>
                 {productionCycles.length > 0 ? (
-                  <table>
-                    <thead>
-                      <tr>
-                        <th>Cycle</th>
-                        <th>Type</th>
-                        <th>Requested Qty</th>
-                        <th>Printed Qty</th>
-                        <th>Rejected</th>
-                        <th>Successful</th>
-                        <th>Validated</th>
-                        <th>Material Reserved</th>
-                        <th>Material Used</th>
-                        <th>Print Time</th>
-                        <th>Material Cost</th>
-                        <th>Machine Cost</th>
-                        <th>Total Cost</th>
-                        <th>Start</th>
-                        <th>End</th>
-                        <th>By</th>
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {productionCycles.map(cycle => (
-                        <tr key={cycle.id}>
-                          <td style={{ fontWeight: 700 }}>{cycle.cycle_number}</td>
-                          <td>{cycle.cycle_number === 1 ? 'Original' : 'Rework'}</td>
-                          <td>{numberOrZero(cycle.requested_quantity).toFixed(0)}</td>
-                          <td>{numberOrZero(cycle.printed_quantity).toFixed(0)}</td>
-                          <td>{numberOrZero(cycle.rejected_quantity).toFixed(0)}</td>
-                          <td>{Math.max(numberOrZero(cycle.printed_quantity) - numberOrZero(cycle.rejected_quantity), 0).toFixed(0)}</td>
-                          <td>{numberOrZero(cycle.validated_quantity).toFixed(0)}</td>
-                          <td>{numberOrZero(cycle.material_reserved).toFixed(1)} g</td>
-                          <td>{numberOrZero(cycle.material_used).toFixed(1)} g</td>
-                          <td>{formatMinutesAsDuration(cycle.print_time_minutes) || '*'}</td>
-                          <td>{money(cycle.material_cost) || money(0)}</td>
-                          <td>{money(cycle.machine_cost) || money(0)}</td>
-                          <td>{money(cycle.actual_cost) || money(0)}</td>
-                          <td>{formatDateTime(cycle.start_time) || '-'}</td>
-                          <td>{formatDateTime(cycle.end_time) || '-'}</td>
-                          <td>{cycle.created_by_full_name || cycle.created_by_name || '-'}</td>
+                  <div className="table-container" style={{ maxWidth: '100%' }}>
+                    <table style={{ minWidth: 'max-content' }}>
+                      <thead>
+                        <tr>
+                          <th>Cycle</th>
+                          <th>Type</th>
+                          <th>Requested Qty</th>
+                          <th>Printed Qty</th>
+                          <th>Rejected</th>
+                          <th>Successful</th>
+                          <th>Validated</th>
+                          <th>Material Reserved</th>
+                          <th>Material Used</th>
+                          <th>Print Time</th>
+                          <th>Material Cost</th>
+                          <th>Machine Cost</th>
+                          <th>Total Cost</th>
+                          <th>Start</th>
+                          <th>End</th>
+                          <th>By</th>
                         </tr>
-                      ))}
-                    </tbody>
-                    <tfoot>
-                      <tr>
-                        <td colSpan="12" style={{ textAlign: 'right', fontWeight: 800 }}>Total Production Cost</td>
-                        <td style={{ fontWeight: 800 }}>{money(displayedTotalProductionCost) || money(0)}</td>
-                        <td colSpan="3"></td>
-                      </tr>
-                    </tfoot>
-                  </table>
+                      </thead>
+                      <tbody>
+                        {productionCycles.map(cycle => (
+                          <tr key={cycle.id}>
+                            <td style={{ fontWeight: 700 }}>{cycle.cycle_number}</td>
+                            <td>{cycle.cycle_number === 1 ? 'Original' : 'Rework'}</td>
+                            <td>{numberOrZero(cycle.requested_quantity).toFixed(0)}</td>
+                            <td>{numberOrZero(cycle.printed_quantity).toFixed(0)}</td>
+                            <td>{numberOrZero(cycle.rejected_quantity).toFixed(0)}</td>
+                            <td>{Math.max(numberOrZero(cycle.printed_quantity) - numberOrZero(cycle.rejected_quantity), 0).toFixed(0)}</td>
+                            <td>{numberOrZero(cycle.validated_quantity).toFixed(0)}</td>
+                            <td>{numberOrZero(cycle.material_reserved).toFixed(1)} g</td>
+                            <td>{numberOrZero(cycle.material_used).toFixed(1)} g</td>
+                            <td>{formatMinutesAsDuration(cycle.print_time_minutes) || '*'}</td>
+                            <td>{money(cycle.material_cost) || money(0)}</td>
+                            <td>{money(cycle.machine_cost) || money(0)}</td>
+                            <td>{money(cycle.actual_cost) || money(0)}</td>
+                            <td>{formatDateTime(cycle.start_time) || '-'}</td>
+                            <td>{formatDateTime(cycle.end_time) || '-'}</td>
+                            <td>{cycle.created_by_full_name || cycle.created_by_name || '-'}</td>
+                          </tr>
+                        ))}
+                      </tbody>
+                      <tfoot>
+                        <tr>
+                          <td colSpan="12" style={{ textAlign: 'right', fontWeight: 800 }}>Total Production Cost</td>
+                          <td style={{ fontWeight: 800 }}>{money(displayedTotalProductionCost) || money(0)}</td>
+                          <td colSpan="3"></td>
+                        </tr>
+                      </tfoot>
+                    </table>
+                  </div>
                 ) : (
                   <div className="empty-state" style={{ padding: '1.5rem' }}>
                     <p>No production cycle recorded yet.</p>
@@ -1784,7 +1786,7 @@ export default function RequestDetailPage() {
                       <div style={{ flex: 1, paddingBottom: '0.75rem' }}>
                         <div style={{ display: 'flex', gap: '0.5rem', alignItems: 'center', flexWrap: 'wrap', marginBottom: '0.25rem' }}>
                           {h.from_status && <StatusBadge status={h.from_status}/>}
-                          {h.from_status && <span style={{ color: 'var(--text-muted)', fontSize: '0.8rem' }}>?</span>}
+                          {h.from_status && <span style={{ color: 'var(--text-muted)', fontSize: '0.8rem' }}>→</span>}
                           <StatusBadge status={h.to_status}/>
                         </div>
                         <div style={{ fontSize: '0.78rem', color: 'var(--text-muted)' }}>
@@ -2195,12 +2197,12 @@ export default function RequestDetailPage() {
                       );
                       if (used < reserved) return (
                         <div style={{ marginTop: '0.35rem', fontSize: '0.75rem', color: 'var(--green)' }}>
-                          ? {(reserved - used).toFixed(1)}g will be returned to stock.
+                          📦 {(reserved - used).toFixed(1)}g will be returned to stock.
                         </div>
                       );
                       return (
                         <div style={{ marginTop: '0.35rem', fontSize: '0.75rem', color: 'var(--cyan)' }}>
-                          ? Exact match with reserved quantity.
+                          ✓ Exact match with reserved quantity.
                         </div>
                       );
                     })()}
@@ -2235,7 +2237,7 @@ export default function RequestDetailPage() {
                   <div className="form-group">
                     <label className="form-label">Reception Condition</label>
                     <select className="form-select" value={statusReceptionCondition} onChange={e => setStatusReceptionCondition(e.target.value)}>
-                      <option value="ok">? OK — fully compliant</option>
+                      <option value="ok">✓ OK — fully compliant</option>
                       <option value="partial">⚠ Partial — partially accepted</option>
                       <option value="damaged">✕ Damaged on delivery</option>
                     </select>

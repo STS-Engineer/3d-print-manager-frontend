@@ -139,7 +139,7 @@ export function FeasibilityPanel({ requestId, requestStatus, readOnly = false, e
             padding: '0.25rem 0.6rem',
           }}
         >
-          {v === 'true' ? '✓ Yes' : v === 'false' ? '✕ No' : '— ?'}
+          {v === 'true' ? '✓ Yes' : v === 'false' ? '✕ No' : '—'}
         </button>
       ))}
     </div>
