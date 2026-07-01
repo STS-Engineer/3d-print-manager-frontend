@@ -5,10 +5,10 @@ import Sidebar from '../components/common/Sidebar';
 const ROLE_LABELS = { requester: 'Requester', production_technician: 'Production Technician', manager: 'Manager', administrator: 'Administrator' };
 const ROLE_COLORS = { requester: 'var(--blue)', production_technician: 'var(--green)', manager: 'var(--purple)', administrator: 'var(--red)' };
 
-function Modal({ title, onClose, children, footer }) {
+function Modal({ title, onClose, children, footer, maxWidth = 520 }) {
   return (
     <div className="modal-overlay" onClick={onClose}>
-      <div className="modal" style={{ maxWidth: 520 }} onClick={e => e.stopPropagation()}>
+      <div className="modal" style={{ maxWidth }} onClick={e => e.stopPropagation()}>
         <div className="modal-header">
           <h2 style={{ fontSize: '1rem', fontFamily: 'var(--font-heading)' }}>{title}</h2>
           <button className="btn btn-ghost btn-sm" onClick={onClose}>✕</button>
@@ -33,6 +33,7 @@ export default function AdminPage() {
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState('');
   const [deleteConflict, setDeleteConflict] = useState(null);
+  const [deleteErrorModal, setDeleteErrorModal] = useState(null);
 
   const fetchAll = useCallback(async () => {
     setLoading(true);
@@ -48,11 +49,11 @@ export default function AdminPage() {
 
   useEffect(() => { fetchAll(); }, [fetchAll]);
 
-  const openCreate = (type) => { setForm({}); setError(''); setDeleteConflict(null); setModal({ type }); };
-  const openEdit = (type, data) => { setForm({ ...data }); setError(''); setDeleteConflict(null); setModal({ type, edit: true, id: data.id }); };
+  const openCreate = (type) => { setForm({}); setError(''); setDeleteConflict(null); setDeleteErrorModal(null); setModal({ type }); };
+  const openEdit = (type, data) => { setForm({ ...data }); setError(''); setDeleteConflict(null); setDeleteErrorModal(null); setModal({ type, edit: true, id: data.id }); };
   const openDelete = (subtype, data) => {
     if (!window.confirm(`Delete "${data.name || data.first_name + ' ' + data.last_name}"? This cannot be undone.`)) return;
-    setForm(data); setError(''); setDeleteConflict(null);
+    setForm(data); setError(''); setDeleteConflict(null); setDeleteErrorModal(null);
     setModal({ type: 'delete', subtype, id: data.id, edit: true });
     // Immediately trigger save
     setTimeout(() => document.getElementById('modal-save-btn')?.click(), 50);
@@ -86,12 +87,20 @@ export default function AdminPage() {
       setModal(null);
       await fetchAll();
     } catch (err) {
-      if (modal?.type === 'delete' && modal?.subtype === 'category' && err.response?.status === 409) {
+      if (modal?.type === 'delete' && modal?.subtype === 'user' && err.response?.status === 409) {
+        setDeleteErrorModal(err.response?.data?.error || 'Delete failed');
+        setDeleteConflict(null);
+        setError('');
+        setModal(null);
+      } else if (modal?.type === 'delete' && modal?.subtype === 'category' && err.response?.status === 409) {
         setDeleteConflict(err.response.data);
+        setDeleteErrorModal(null);
+        setError(err.response?.data?.error || 'Save failed');
       } else {
         setDeleteConflict(null);
+        setDeleteErrorModal(null);
+        setError(err.response?.data?.error || 'Save failed');
       }
-      setError(err.response?.data?.error || 'Save failed');
     } finally {
       setSaving(false);
     }
@@ -305,6 +314,40 @@ export default function AdminPage() {
         </div>
       </div>
 
+      {deleteErrorModal && (
+        <Modal
+          title="User cannot be deleted"
+          onClose={() => setDeleteErrorModal(null)}
+          maxWidth={760}
+          footer={
+            <button className="btn btn-primary" onClick={() => setDeleteErrorModal(null)}>
+              Close
+            </button>
+          }
+        >
+          <div
+            className="alert alert-error"
+            style={{
+              marginBottom: 0,
+              maxHeight: '65vh',
+              overflowY: 'auto',
+            }}
+          >
+            <pre
+              style={{
+                margin: 0,
+                whiteSpace: 'pre-wrap',
+                wordBreak: 'break-word',
+                fontFamily: 'inherit',
+                fontSize: '0.9rem',
+                lineHeight: 1.6,
+                color: 'inherit',
+              }}
+            >{deleteErrorModal}</pre>
+          </div>
+        </Modal>
+      )}
+
       {/* Modal */}
       {modal && (
         <Modal
@@ -328,7 +371,7 @@ export default function AdminPage() {
             </>
           }
         >
-          {error && <div className="alert alert-error" style={{ marginBottom: '1rem' }}>{error}</div>}
+          {error && <div className="alert alert-error" style={{ marginBottom: '1rem', whiteSpace: 'pre-line' }}>{error}</div>}
 
           {modal.type === 'user' && (
             <div style={{ display: 'flex', flexDirection: 'column', gap: '0.85rem' }}>
